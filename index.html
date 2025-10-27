@@ -4,30 +4,91 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ChessBaku</title>
+  <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"></script>
+  <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #141E30, #243B55);
+      background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
       color: white;
       text-align: center;
+      font-family: Arial, sans-serif;
       margin: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
+      padding: 20px;
     }
     h1 {
-      font-size: 3em;
+      font-size: 2.5em;
       margin-bottom: 10px;
     }
-    p {
-      font-size: 1.2em;
+    #board {
+      width: 400px;
+      margin: 20px auto;
+      border: 3px solid #eee;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    }
+    button {
+      background-color: #1e90ff;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      font-size: 1em;
+      border-radius: 5px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>♟ Welcome to ChessBaku!</h1>
-  <p>Your online chess platform is live.</p>
+  <h1>♟ ChessBaku</h1>
+  <div id="board"></div>
+  <button onclick="resetBoard()">🔄 Reset</button>
+
+  <script>
+    var board = null
+    var game = new Chess()
+
+    function onDragStart (source, piece, position, orientation) {
+      if (game.in_checkmate() || game.in_draw() || piece.search(/^b/) !== -1) {
+        return false
+      }
+    }
+
+    function makeRandomMove () {
+      var possibleMoves = game.moves()
+      if (possibleMoves.length === 0) return
+      var randomIdx = Math.floor(Math.random() * possibleMoves.length)
+      game.move(possibleMoves[randomIdx])
+      board.position(game.fen())
+    }
+
+    function onDrop (source, target) {
+      var move = game.move({
+        from: source,
+        to: target,
+        promotion: 'q'
+      })
+
+      if (move === null) return 'snapback'
+
+      window.setTimeout(makeRandomMove, 250)
+    }
+
+    function resetBoard() {
+      game.reset()
+      board.start()
+    }
+
+    function onSnapEnd () {
+      board.position(game.fen())
+    }
+
+    board = Chessboard('board', {
+      draggable: true,
+      position: 'start',
+      onDragStart: onDragStart,
+      onDrop: onDrop,
+      onSnapEnd: onSnapEnd
+    })
+  </script>
 </body>
 </html>
