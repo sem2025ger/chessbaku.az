@@ -3,181 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ChessBaku</title>
+  <title>ChessBaku - Play Chess Online</title>
 
-  <!-- Chessboard.js -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <!-- Chessboard.js styles -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
+  />
 
-  <style>
-    body {
-      background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
-      color: white;
-      text-align: center;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 2.5em;
-      margin-bottom: 10px;
-    }
-
-    #container {
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      gap: 30px;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
-
-    #board {
-      width: 400px;
-      border: 3px solid #eee;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-    }
-
-    #analysis {
-      width: 300px;
-      background-color: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      text-align: left;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
-    }
-
-    #analysis h2 {
-      text-align: center;
-      color: #aee1ff;
-    }
-
-    #analysis p {
-      font-size: 1.1em;
-      color: #e0f0ff;
-      margin: 5px 0;
-    }
-
-    button {
-      background-color: #1e90ff;
-      border: none;
-      color: white;
-      padding: 10px 20px;
-      font-size: 1em;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    button:hover {
-      background-color: #63a4ff;
-    }
-  </style>
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-  <h1>♟ ChessBaku</h1>
+  <div class="container">
+    <header>
+      <h1>♟️ ChessBaku</h1>
+      <p>Play Chess with Stockfish 16 AI</p>
+    </header>
 
-  <div id="container">
-    <div id="board"></div>
+    <div class="game-container">
+      <div class="board-section">
+        <div id="myBoard"></div>
 
-    <div id="analysis">
-      <h2>🔍 Анализ позиции</h2>
-      <p id="engine-status">⏳ Инициализация движка...</p>
-      <p id="eval">Оценка: —</p>
-      <p id="best-move">Лучший ход: —</p>
-      <p id="depth">Глубина: —</p>
+        <div class="controls">
+          <button id="newGameBtn" class="btn">♻️ New Game</button>
+          <button id="undoBtn" class="btn">↩️ Undo Move</button>
+          <button id="flipBtn" class="btn">🔁 Flip Board</button>
+        </div>
+
+        <div class="game-info">
+          <div id="status">White to move</div>
+          <div id="moveHistory"></div>
+        </div>
+      </div>
+
+      <div class="analysis-panel">
+        <h3>🔍 Real-Time Analysis</h3>
+        <div class="analysis-content">
+          <div class="eval-section">
+            <div class="eval-label">Evaluation:</div>
+            <div id="evaluation" class="eval-value">+0.0</div>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Depth:</span>
+              <span id="depth" class="info-value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Nodes:</span>
+              <span id="nodes" class="info-value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Speed:</span>
+              <span id="nps" class="info-value">0 kn/s</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Time:</span>
+              <span id="time" class="info-value">0s</span>
+            </div>
+          </div>
+
+          <div class="best-move-section">
+            <div class="info-label">Best Move:</div>
+            <div id="bestMove" class="best-move-value">-</div>
+          </div>
+
+          <div class="pv-section">
+            <div class="info-label">Principal Variation:</div>
+            <div id="pvLine" class="pv-value">-</div>
+          </div>
+        </div>
+
+        <div class="engine-status">
+          <span id="engineStatus">⚙️ Initializing engine...</span>
+        </div>
+      </div>
     </div>
+
+    <footer>
+      <p>
+        Powered by Stockfish 16 WASM |
+        <a href="https://github.com/sem2025ger/chessbaku.az" target="_blank">
+          GitHub
+        </a>
+      </p>
+    </footer>
   </div>
 
-  <button onclick="resetBoard()">🔄 Сброс</button>
+  <!-- Dependencies -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
-  <script>
-    const board = Chessboard('board', {
-      draggable: true,
-      position: 'start',
-      onDragStart,
-      onDrop,
-      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-    });
-
-    const game = new Chess();
-    const stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/stockfish.js');
-
-    document.getElementById('engine-status').textContent = '⚙️ Движок загружается...';
-
-    stockfish.onmessage = function(event) {
-      const line = event.data;
-      if (typeof line !== 'string') return;
-
-      if (line.includes('uciok')) {
-        document.getElementById('engine-status').textContent = '✅ Движок готов';
-      }
-
-      if (line.includes('info depth')) {
-        const evalMatch = line.match(/score cp (-?\d+)/);
-        const depthMatch = line.match(/depth (\d+)/);
-        const pvMatch = line.match(/pv ([a-h][1-8][a-h][1-8])/);
-
-        if (evalMatch) {
-          const value = (parseInt(evalMatch[1]) / 100).toFixed(2);
-          document.getElementById('eval').textContent = `Оценка: ${value > 0 ? '+' + value : value}`;
-        }
-        if (depthMatch) {
-          document.getElementById('depth').textContent = `Глубина: ${depthMatch[1]}`;
-        }
-        if (pvMatch) {
-          const move = pvMatch[1];
-          document.getElementById('best-move').textContent = `Лучший ход: ${move}`;
-        }
-      }
-
-      if (line.startsWith('bestmove')) {
-        const move = line.split(' ')[1];
-        if (move) {
-          game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: 'q' });
-          board.position(game.fen());
-          analyzePosition();
-        }
-      }
-    };
-
-    stockfish.postMessage('uci');
-    stockfish.postMessage('isready');
-
-    function analyzePosition() {
-      const fen = game.fen();
-      stockfish.postMessage(`position fen ${fen}`);
-      stockfish.postMessage('go depth 15');
-    }
-
-    function onDragStart(source, piece) {
-      if (game.in_checkmate() || game.in_draw() || piece.startsWith('b')) return false;
-    }
-
-    function onDrop(source, target) {
-      const move = game.move({ from: source, to: target, promotion: 'q' });
-      if (move === null) return 'snapback';
-      board.position(game.fen());
-      setTimeout(() => {
-        analyzePosition();
-        stockfish.postMessage(`position fen ${game.fen()}`);
-        stockfish.postMessage('go depth 15');
-      }, 500);
-    }
-
-    function resetBoard() {
-      game.reset();
-      board.start();
-      document.getElementById('eval').textContent = 'Оценка: —';
-      document.getElementById('best-move').textContent = 'Лучший ход: —';
-      document.getElementById('depth').textContent = 'Глубина: —';
-    }
-
-    analyzePosition();
-  </script>
+  <!-- Main app -->
+  <script src="app.js"></script>
 </body>
 </html>
