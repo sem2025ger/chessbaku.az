@@ -4,7 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ChessBaku</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+
+  <!-- Стили chessboard.js -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
+  />
+
+  <!-- Подключение библиотек -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
@@ -37,6 +44,9 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    button:hover {
+      background-color: #63b3ff;
+    }
   </style>
 </head>
 <body>
@@ -68,9 +78,7 @@
         to: target,
         promotion: 'q'
       });
-
       if (move === null) return 'snapback';
-
       window.setTimeout(makeRandomMove, 500);
     }
 
@@ -83,13 +91,17 @@
       board.position(game.fen());
     }
 
-    board = Chessboard('board', {
+    // 🔧 Исправление путей к изображениям фигур
+    var cfg = {
       draggable: true,
       position: 'start',
       onDragStart: onDragStart,
       onDrop: onDrop,
-      onSnapEnd: onSnapEnd
-    });
+      onSnapEnd: onSnapEnd,
+      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+    };
+
+    board = Chessboard('board', cfg);
   </script>
 </body>
 </html>
