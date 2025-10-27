@@ -53,6 +53,12 @@
       font-size: 1.2em;
       color: #d0e4ff;
     }
+
+    #status {
+      margin-top: 10px;
+      font-size: 1em;
+      color: #90caf9;
+    }
   </style>
 </head>
 
@@ -61,88 +67,135 @@
   <div id="board"></div>
   <button onclick="resetBoard()">🔄 Reset</button>
 
-  <div id="analysis">🧩 Оценка позиции: ждём данных...</div>
+  <div id="status">Ваш ход (белые)</div>
+  <div id="analysis">🧩 Оценка позиции: 0.00</div>
 
   <script>
     var board = null;
     var game = new Chess();
-    var stockfish = null;
     var waitingForMove = false;
 
-    // Инициализация Stockfish
-    try {
-      stockfish = new Worker("https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js");
-      stockfish.postMessage("uci");
-    } catch (e) {
-      console.error("Ошибка загрузки Stockfish:", e);
-      $("#analysis").text("⚠️ Ошибка загрузки движка");
+    // Оценка материала
+    var pieceValues = {
+      'p': 1,
+      'n': 3,
+      'b': 3,
+      'r': 5,
+      'q': 9,
+      'k': 0
+    };
+
+    function evaluateBoard() {
+      var totalEval = 0;
+      var board = game.board();
+      
+      for (var i = 0; i < 8; i++) {
+        for (var j = 0; j < 8; j++) {
+          var piece = board[i][j];
+          if (piece) {
+            var value = pieceValues[piece.type];
+            if (piece.color === 'w') {
+              totalEval += value;
+            } else {
+              totalEval -= value;
+            }
+          }
+        }
+      }
+      
+      return totalEval;
     }
 
     function updateAnalysis() {
-      if (!stockfish) return;
-      
       if (game.game_over()) {
         if (game.in_checkmate()) {
-          $("#analysis").text("♟ Мат! Игра окончена");
+          var winner = game.turn() === 'w' ? 'Чёрные' : 'Белые';
+          $("#status").text("♟ Мат! " + winner + " победили!");
+          $("#analysis").text("🎉 Игра окончена");
         } else if (game.in_draw()) {
-          $("#analysis").text("♟ Ничья");
+          $("#status").text("♟ Ничья");
+          $("#analysis").text("🤝 Игра окончена");
+        } else if (game.in_stalemate()) {
+          $("#status").text("♟ Пат");
+          $("#analysis").text("🤝 Игра окончена");
         } else {
-          $("#analysis").text("♟ Игра окончена");
+          $("#status").text("♟ Игра окончена");
+          $("#analysis").text("🎉 Игра окончена");
         }
         return;
       }
       
-      stockfish.postMessage("position fen " + game.fen());
-      stockfish.postMessage("go depth 12");
+      var eval = evaluateBoard().toFixed(2);
+      $("#analysis").text("🧩 Оценка позиции: " + eval);
+      
+      if (game.in_check()) {
+        $("#status").text("⚠️ Шах! " + (game.turn() === 'w' ? 'Ваш ход' : 'Ход AI'));
+      } else {
+        $("#status").text(game.turn() === 'w' ? 'Ваш ход (белые)' : 'Думает AI...');
+      }
     }
 
-    if (stockfish) {
-      stockfish.onmessage = function(event) {
-        var line = event.data;
-        
-        // Обработка хода AI
-        if (waitingForMove && line.startsWith("bestmove")) {
-          waitingForMove = false;
-          var moveStr = line.split(" ")[1];
-          if (moveStr && moveStr !== "(none)") {
-            var from = moveStr.substring(0, 2);
-            var to = moveStr.substring(2, 4);
-            var promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : 'q';
-            
-            var move = game.move({ from: from, to: to, promotion: promotion });
-            if (move) {
-              board.position(game.fen());
-              updateAnalysis();
-            }
-          }
+    function minimax(depth, isMaximizing, alpha, beta) {
+      if (depth === 0 || game.game_over()) {
+        return evaluateBoard();
+      }
+
+      var moves = game.moves();
+      
+      if (isMaximizing) {
+        var maxEval = -Infinity;
+        for (var i = 0; i < moves.length; i++) {
+          game.move(moves[i]);
+          var eval = minimax(depth - 1, false, alpha, beta);
+          game.undo();
+          maxEval = Math.max(maxEval, eval);
+          alpha = Math.max(alpha, eval);
+          if (beta <= alpha) break;
         }
-        
-        // Обновление оценки позиции
-        if (line.includes("score cp")) {
-          var match = line.match(/score cp (-?\d+)/);
-          if (match) {
-            var eval = (parseInt(match[1]) / 100.0).toFixed(2);
-            $("#analysis").text("🧩 Оценка позиции: " + eval);
-          }
-        } else if (line.includes("score mate")) {
-          var match = line.match(/score mate (-?\d+)/);
-          if (match) {
-            var mateIn = match[1];
-            $("#analysis").text("🧩 Мат в " + Math.abs(mateIn) + " ходов");
-          }
+        return maxEval;
+      } else {
+        var minEval = Infinity;
+        for (var i = 0; i < moves.length; i++) {
+          game.move(moves[i]);
+          var eval = minimax(depth - 1, true, alpha, beta);
+          game.undo();
+          minEval = Math.min(minEval, eval);
+          beta = Math.min(beta, eval);
+          if (beta <= alpha) break;
         }
-      };
+        return minEval;
+      }
+    }
+
+    function getBestMove() {
+      var moves = game.moves();
+      var bestMove = null;
+      var bestValue = Infinity;
+
+      // Перемешиваем ходы для разнообразия
+      moves.sort(() => Math.random() - 0.5);
+
+      for (var i = 0; i < moves.length; i++) {
+        game.move(moves[i]);
+        var boardValue = minimax(2, true, -Infinity, Infinity);
+        game.undo();
+        
+        if (boardValue < bestValue) {
+          bestValue = boardValue;
+          bestMove = moves[i];
+        }
+      }
+      
+      return bestMove;
     }
 
     function onDragStart(source, piece, position, orientation) {
-      // Запрет хода если игра окончена или ход чёрных
       if (game.game_over() || game.turn() === 'b' || piece.search(/^b/) !== -1 || waitingForMove) {
         return false;
       }
     }
 
     function onDrop(source, target) {
-      // Попытка сделать ход
       var move = game.move({
         from: source,
         to: target,
@@ -152,35 +205,40 @@
       if (move === null) return 'snapback';
 
       board.position(game.fen());
+      updateAnalysis();
       
-      // Ход AI после небольшой задержки
       if (!game.game_over()) {
         waitingForMove = true;
-        window.setTimeout(makeAIMove, 250);
-      } else {
-        updateAnalysis();
+        window.setTimeout(makeAIMove, 500);
       }
     }
 
     function makeAIMove() {
-      if (!stockfish || game.game_over()) {
+      if (game.game_over()) {
         waitingForMove = false;
         return;
       }
       
-      stockfish.postMessage("position fen " + game.fen());
-      stockfish.postMessage("go depth 12");
+      var bestMove = getBestMove();
+      
+      if (bestMove) {
+        game.move(bestMove);
+        board.position(game.fen());
+        updateAnalysis();
+      }
+      
+      waitingForMove = false;
     }
 
     function resetBoard() {
       game.reset();
       board.start();
       waitingForMove = false;
-      $("#analysis").text("🧩 Оценка позиции: ждём данных...");
+      $("#status").text("Ваш ход (белые)");
+      $("#analysis").text("🧩 Оценка позиции: 0.00");
       updateAnalysis();
     }
 
-    // Инициализация доски
     board = Chessboard("board", {
       draggable: true,
       position: "start",
@@ -189,8 +247,7 @@
       pieceTheme: "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png"
     });
 
-    // Первоначальная оценка
-    window.setTimeout(updateAnalysis, 500);
+    updateAnalysis();
   </script>
 </body>
 </html>
