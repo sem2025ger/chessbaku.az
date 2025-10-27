@@ -4,10 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ChessBaku</title>
-  <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"></script>
-  <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
   <style>
     body {
       background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
@@ -44,42 +45,42 @@
   <button onclick="resetBoard()">🔄 Reset</button>
 
   <script>
-    var board = null
-    var game = new Chess()
+    var board = null;
+    var game = new Chess();
 
-    function onDragStart (source, piece, position, orientation) {
-      if (game.in_checkmate() || game.in_draw() || piece.search(/^b/) !== -1) {
-        return false
+    function onDragStart(source, piece, position, orientation) {
+      if (game.in_checkmate() || game.in_draw() || piece.startsWith('b')) {
+        return false;
       }
     }
 
-    function makeRandomMove () {
-      var possibleMoves = game.moves()
-      if (possibleMoves.length === 0) return
-      var randomIdx = Math.floor(Math.random() * possibleMoves.length)
-      game.move(possibleMoves[randomIdx])
-      board.position(game.fen())
+    function makeRandomMove() {
+      var possibleMoves = game.moves();
+      if (possibleMoves.length === 0) return;
+      var randomIdx = Math.floor(Math.random() * possibleMoves.length);
+      game.move(possibleMoves[randomIdx]);
+      board.position(game.fen());
     }
 
-    function onDrop (source, target) {
+    function onDrop(source, target) {
       var move = game.move({
         from: source,
         to: target,
         promotion: 'q'
-      })
+      });
 
-      if (move === null) return 'snapback'
+      if (move === null) return 'snapback';
 
-      window.setTimeout(makeRandomMove, 250)
+      window.setTimeout(makeRandomMove, 500);
     }
 
     function resetBoard() {
-      game.reset()
-      board.start()
+      game.reset();
+      board.start();
     }
 
-    function onSnapEnd () {
-      board.position(game.fen())
+    function onSnapEnd() {
+      board.position(game.fen());
     }
 
     board = Chessboard('board', {
@@ -88,7 +89,7 @@
       onDragStart: onDragStart,
       onDrop: onDrop,
       onSnapEnd: onSnapEnd
-    })
+    });
   </script>
 </body>
 </html>
