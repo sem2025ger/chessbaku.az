@@ -1,0 +1,96 @@
+/* === ChessBaku Styles === */
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: linear-gradient(145deg, #0f2027, #203a43, #2c5364);
+  color: #fff;
+  text-align: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+h1 {
+  font-size: 2.2rem;
+  margin-top: 1rem;
+  color: #ffd700;
+}
+
+p {
+  margin: 0.3rem 0 1rem 0;
+  font-size: 1rem;
+}
+
+.container {
+  width: 90%;
+  max-width: 1000px;
+  padding: 20px;
+}
+
+.game-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 25px;
+  margin-top: 20px;
+}
+
+.board-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#myBoard {
+  width: 400px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+}
+
+.controls {
+  margin-top: 8px;
+}
+
+.btn {
+  background-color: #1e90ff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 14px;
+  cursor: pointer;
+  margin: 0 5px;
+  transition: 0.3s;
+}
+
+.btn:hover {
+  background-color: #00bfff;
+}
+
+.analysis-panel {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 15px;
+  border-radius: 10px;
+  width: 280px;
+  text-align: left;
+  color: #eee;
+  font-size: 0.95rem;
+}
+
+footer {
+  margin-top: 40px;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+a {
+  color: #00bfff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
