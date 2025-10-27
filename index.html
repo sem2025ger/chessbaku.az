@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ChessBaku</title>
+  <title>ChessBaku - Stockfish 16 AI</title>
 
   <!-- Chessboard и библиотеки -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
@@ -12,242 +12,550 @@
   <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
   <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
       color: white;
-      text-align: center;
-      font-family: Arial, sans-serif;
-      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
       padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
     }
 
     h1 {
       font-size: 2.5em;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .game-wrapper {
+      display: flex;
+      gap: 30px;
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .board-section {
+      flex: 0 0 auto;
     }
 
     #board {
-      width: 400px;
-      margin: 20px auto;
+      width: 500px;
+      height: 500px;
       border: 3px solid #eee;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+    }
+
+    .controls {
+      margin-top: 15px;
+      text-align: center;
     }
 
     button {
       background-color: #1e90ff;
       border: none;
       color: white;
-      padding: 10px 20px;
+      padding: 12px 24px;
       font-size: 1em;
       border-radius: 5px;
       cursor: pointer;
-      margin-top: 10px;
+      margin: 5px;
+      transition: background-color 0.3s;
     }
 
     button:hover {
       background-color: #63a4ff;
     }
 
-    #analysis {
-      margin-top: 15px;
-      font-size: 1.2em;
-      color: #d0e4ff;
+    button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+    }
+
+    .analysis-panel {
+      flex: 1;
+      min-width: 300px;
+      max-width: 400px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .analysis-panel h2 {
+      font-size: 1.5em;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #1e90ff;
+      padding-bottom: 10px;
+    }
+
+    .analysis-item {
+      margin: 15px 0;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+    }
+
+    .analysis-label {
+      font-size: 0.9em;
+      color: #90caf9;
+      margin-bottom: 5px;
+    }
+
+    .analysis-value {
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .eval-positive {
+      color: #4caf50;
+    }
+
+    .eval-negative {
+      color: #f44336;
+    }
+
+    .eval-neutral {
+      color: #ffc107;
     }
 
     #status {
+      text-align: center;
+      font-size: 1.2em;
       margin-top: 10px;
-      font-size: 1em;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+    }
+
+    .thinking {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .engine-info {
+      font-size: 0.8em;
       color: #90caf9;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      #board {
+        width: 90vw;
+        height: 90vw;
+        max-width: 500px;
+        max-height: 500px;
+      }
+
+      .game-wrapper {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .analysis-panel {
+        width: 90vw;
+        max-width: 500px;
+      }
+
+      h1 {
+        font-size: 2em;
+      }
     }
   </style>
 </head>
 
 <body>
-  <h1>♟ ChessBaku</h1>
-  <div id="board"></div>
-  <button onclick="resetBoard()">🔄 Reset</button>
+  <div class="container">
+    <h1>♟ ChessBaku</h1>
+    
+    <div class="game-wrapper">
+      <div class="board-section">
+        <div id="board"></div>
+        <div class="controls">
+          <button onclick="resetBoard()">🔄 New Game</button>
+          <button onclick="undoMove()" id="undoBtn">↶ Undo</button>
+        </div>
+        <div id="status">Your move (White)</div>
+        <div class="engine-info">Powered by Stockfish 16 WASM</div>
+      </div>
 
-  <div id="status">Ваш ход (белые)</div>
-  <div id="analysis">🧩 Оценка позиции: 0.00</div>
+      <div class="analysis-panel">
+        <h2>📊 Analysis</h2>
+        
+        <div class="analysis-item">
+          <div class="analysis-label">Evaluation</div>
+          <div class="analysis-value eval-neutral" id="evaluation">0.00</div>
+        </div>
+
+        <div class="analysis-item">
+          <div class="analysis-label">Best Move</div>
+          <div class="analysis-value" id="bestMove">—</div>
+        </div>
+
+        <div class="analysis-item">
+          <div class="analysis-label">Depth</div>
+          <div class="analysis-value" id="depth">—</div>
+        </div>
+
+        <div class="analysis-item">
+          <div class="analysis-label">Nodes Searched</div>
+          <div class="analysis-value" id="nodes">—</div>
+        </div>
+
+        <div class="analysis-item">
+          <div class="analysis-label">Engine Status</div>
+          <div class="analysis-value" id="engineStatus">Initializing...</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     var board = null;
     var game = new Chess();
+    var engineReady = false;
     var waitingForMove = false;
+    var currentBestMove = null;
+    var analysisDepth = 15;
 
-    // Оценка материала
-    var pieceValues = {
-      'p': 1,
-      'n': 3,
-      'b': 3,
-      'r': 5,
-      'q': 9,
-      'k': 0
-    };
+    // Создаём Web Worker для Stockfish
+    var stockfishWorker = null;
 
-    function evaluateBoard() {
-      var totalEval = 0;
-      var board = game.board();
-      
-      for (var i = 0; i < 8; i++) {
-        for (var j = 0; j < 8; j++) {
-          var piece = board[i][j];
-          if (piece) {
-            var value = pieceValues[piece.type];
-            if (piece.color === 'w') {
-              totalEval += value;
-            } else {
-              totalEval -= value;
+    function initStockfish() {
+      try {
+        // Создаём blob для Web Worker
+        var workerCode = `
+          importScripts('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/stockfish.wasm.js');
+          
+          var stockfish = null;
+          
+          Stockfish().then(function(sf) {
+            stockfish = sf;
+            stockfish.addMessageListener(function(line) {
+              postMessage(line);
+            });
+            postMessage('ready');
+          });
+          
+          onmessage = function(e) {
+            if (stockfish) {
+              stockfish.postMessage(e.data);
             }
+          };
+        `;
+        
+        var blob = new Blob([workerCode], { type: 'application/javascript' });
+        var workerUrl = URL.createObjectURL(blob);
+        stockfishWorker = new Worker(workerUrl);
+        
+        stockfishWorker.onmessage = function(e) {
+          handleEngineMessage(e.data);
+        };
+        
+        stockfishWorker.onerror = function(error) {
+          console.error('Stockfish Worker Error:', error);
+          $('#engineStatus').text('Error loading engine');
+        };
+        
+      } catch (error) {
+        console.error('Failed to initialize Stockfish:', error);
+        $('#engineStatus').text('Failed to load');
+      }
+    }
+
+    function handleEngineMessage(line) {
+      // Engine готов
+      if (line === 'ready') {
+        engineReady = true;
+        stockfishWorker.postMessage('uci');
+        $('#engineStatus').text('Ready');
+        return;
+      }
+
+      // UCI OK
+      if (line === 'uciok') {
+        stockfishWorker.postMessage('isready');
+        return;
+      }
+
+      if (line === 'readyok') {
+        analyzePosition();
+        return;
+      }
+
+      // Парсинг info строк
+      if (line.startsWith('info') && line.includes('depth')) {
+        parseInfoLine(line);
+      }
+
+      // Лучший ход найден
+      if (line.startsWith('bestmove') && waitingForMove) {
+        var parts = line.split(' ');
+        var moveUci = parts[1];
+        
+        if (moveUci && moveUci !== '(none)') {
+          waitingForMove = false;
+          makeEngineMove(moveUci);
+        }
+      }
+    }
+
+    function parseInfoLine(line) {
+      var depth = null;
+      var score = null;
+      var nodes = null;
+      var pv = null;
+
+      // Извлекаем depth
+      var depthMatch = line.match(/depth (\d+)/);
+      if (depthMatch) {
+        depth = depthMatch[1];
+        $('#depth').text(depth);
+      }
+
+      // Извлекаем nodes
+      var nodesMatch = line.match(/nodes (\d+)/);
+      if (nodesMatch) {
+        nodes = parseInt(nodesMatch[1]).toLocaleString();
+        $('#nodes').text(nodes);
+      }
+
+      // Извлекаем score
+      var scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
+      if (scoreMatch) {
+        var scoreType = scoreMatch[1];
+        var scoreValue = parseInt(scoreMatch[2]);
+
+        if (scoreType === 'cp') {
+          // Центипешки (сотые пешки)
+          score = (scoreValue / 100.0).toFixed(2);
+          updateEvaluation(score);
+        } else if (scoreType === 'mate') {
+          // Мат в N ходов
+          var mateIn = scoreValue;
+          if (mateIn > 0) {
+            $('#evaluation').text('M' + mateIn).removeClass('eval-negative eval-neutral').addClass('eval-positive');
+          } else {
+            $('#evaluation').text('M' + Math.abs(mateIn)).removeClass('eval-positive eval-neutral').addClass('eval-negative');
           }
         }
       }
-      
-      return totalEval;
+
+      // Извлекаем PV (principal variation - лучший ход)
+      var pvMatch = line.match(/pv ([a-h][1-8][a-h][1-8][qrbn]?)/);
+      if (pvMatch) {
+        pv = pvMatch[1];
+        currentBestMove = pv;
+        var humanMove = convertUciToHuman(pv);
+        $('#bestMove').text(humanMove);
+      }
     }
 
-    function updateAnalysis() {
+    function updateEvaluation(score) {
+      var evalNum = parseFloat(score);
+      var $eval = $('#evaluation');
+      
+      $eval.text((evalNum >= 0 ? '+' : '') + score);
+      
+      if (evalNum > 0.5) {
+        $eval.removeClass('eval-negative eval-neutral').addClass('eval-positive');
+      } else if (evalNum < -0.5) {
+        $eval.removeClass('eval-positive eval-neutral').addClass('eval-negative');
+      } else {
+        $eval.removeClass('eval-positive eval-negative').addClass('eval-neutral');
+      }
+    }
+
+    function convertUciToHuman(uci) {
+      if (!uci || uci.length < 4) return '—';
+      
+      var from = uci.substring(0, 2);
+      var to = uci.substring(2, 4);
+      var promotion = uci.length > 4 ? '=' + uci.substring(4).toUpperCase() : '';
+      
+      // Получаем фигуру
+      var piece = game.get(from);
+      var pieceSymbol = piece ? getPieceSymbol(piece.type) : '';
+      
+      return pieceSymbol + from + '-' + to + promotion;
+    }
+
+    function getPieceSymbol(type) {
+      var symbols = {
+        'p': '♟',
+        'n': '♞',
+        'b': '♝',
+        'r': '♜',
+        'q': '♛',
+        'k': '♚'
+      };
+      return symbols[type] || '';
+    }
+
+    function analyzePosition() {
+      if (!engineReady || game.game_over()) return;
+      
+      stockfishWorker.postMessage('position fen ' + game.fen());
+      stockfishWorker.postMessage('go depth ' + analysisDepth);
+    }
+
+    function requestEngineMove() {
+      if (!engineReady || game.game_over()) return;
+      
+      waitingForMove = true;
+      $('#engineStatus').text('Thinking...').addClass('thinking');
+      $('#status').text('AI is thinking...');
+      
+      stockfishWorker.postMessage('position fen ' + game.fen());
+      stockfishWorker.postMessage('go depth ' + analysisDepth);
+    }
+
+    function makeEngineMove(uci) {
+      var from = uci.substring(0, 2);
+      var to = uci.substring(2, 4);
+      var promotion = uci.length > 4 ? uci.substring(4) : 'q';
+      
+      var move = game.move({
+        from: from,
+        to: to,
+        promotion: promotion
+      });
+      
+      if (move) {
+        board.position(game.fen());
+        $('#engineStatus').text('Ready').removeClass('thinking');
+        updateStatus();
+        analyzePosition();
+      }
+    }
+
+    function updateStatus() {
       if (game.game_over()) {
         if (game.in_checkmate()) {
-          var winner = game.turn() === 'w' ? 'Чёрные' : 'Белые';
-          $("#status").text("♟ Мат! " + winner + " победили!");
-          $("#analysis").text("🎉 Игра окончена");
+          var winner = game.turn() === 'w' ? 'Black' : 'White';
+          $('#status').text('♔ Checkmate! ' + winner + ' wins!');
         } else if (game.in_draw()) {
-          $("#status").text("♟ Ничья");
-          $("#analysis").text("🤝 Игра окончена");
+          $('#status').text('½-½ Draw');
         } else if (game.in_stalemate()) {
-          $("#status").text("♟ Пат");
-          $("#analysis").text("🤝 Игра окончена");
+          $('#status').text('½-½ Stalemate');
+        } else if (game.in_threefold_repetition()) {
+          $('#status').text('½-½ Draw by repetition');
         } else {
-          $("#status").text("♟ Игра окончена");
-          $("#analysis").text("🎉 Игра окончена");
+          $('#status').text('Game Over');
         }
-        return;
-      }
-      
-      var eval = evaluateBoard().toFixed(2);
-      $("#analysis").text("🧩 Оценка позиции: " + eval);
-      
-      if (game.in_check()) {
-        $("#status").text("⚠️ Шах! " + (game.turn() === 'w' ? 'Ваш ход' : 'Ход AI'));
+        $('#engineStatus').text('Game finished');
       } else {
-        $("#status").text(game.turn() === 'w' ? 'Ваш ход (белые)' : 'Думает AI...');
-      }
-    }
-
-    function minimax(depth, isMaximizing, alpha, beta) {
-      if (depth === 0 || game.game_over()) {
-        return evaluateBoard();
-      }
-
-      var moves = game.moves();
-      
-      if (isMaximizing) {
-        var maxEval = -Infinity;
-        for (var i = 0; i < moves.length; i++) {
-          game.move(moves[i]);
-          var eval = minimax(depth - 1, false, alpha, beta);
-          game.undo();
-          maxEval = Math.max(maxEval, eval);
-          alpha = Math.max(alpha, eval);
-          if (beta <= alpha) break;
-        }
-        return maxEval;
-      } else {
-        var minEval = Infinity;
-        for (var i = 0; i < moves.length; i++) {
-          game.move(moves[i]);
-          var eval = minimax(depth - 1, true, alpha, beta);
-          game.undo();
-          minEval = Math.min(minEval, eval);
-          beta = Math.min(beta, eval);
-          if (beta <= alpha) break;
-        }
-        return minEval;
-      }
-    }
-
-    function getBestMove() {
-      var moves = game.moves();
-      var bestMove = null;
-      var bestValue = Infinity;
-
-      // Перемешиваем ходы для разнообразия
-      moves.sort(() => Math.random() - 0.5);
-
-      for (var i = 0; i < moves.length; i++) {
-        game.move(moves[i]);
-        var boardValue = minimax(2, true, -Infinity, Infinity);
-        game.undo();
-        
-        if (boardValue < bestValue) {
-          bestValue = boardValue;
-          bestMove = moves[i];
+        if (game.in_check()) {
+          $('#status').text('⚠️ Check! ' + (game.turn() === 'w' ? 'Your move' : 'AI\'s move'));
+        } else {
+          $('#status').text(game.turn() === 'w' ? 'Your move (White)' : 'AI is thinking...');
         }
       }
-      
-      return bestMove;
     }
 
     function onDragStart(source, piece, position, orientation) {
-      if (game.game_over() || game.turn() === 'b' || piece.search(/^b/) !== -1 || waitingForMove) {
+      // Запрет хода если игра окончена, не ваш ход, или AI думает
+      if (game.game_over() || 
+          game.turn() === 'b' || 
+          piece.search(/^b/) !== -1 || 
+          waitingForMove) {
         return false;
       }
     }
 
     function onDrop(source, target) {
+      // Попытка сделать ход
       var move = game.move({
         from: source,
         to: target,
-        promotion: 'q'
+        promotion: 'q' // Всегда превращаем в ферзя
       });
 
+      // Недопустимый ход
       if (move === null) return 'snapback';
 
+      // Обновляем доску
       board.position(game.fen());
-      updateAnalysis();
+      updateStatus();
       
+      // Анализируем позицию
+      analyzePosition();
+      
+      // Если игра не окончена, AI делает ход
       if (!game.game_over()) {
-        waitingForMove = true;
-        window.setTimeout(makeAIMove, 500);
+        setTimeout(requestEngineMove, 250);
       }
-    }
-
-    function makeAIMove() {
-      if (game.game_over()) {
-        waitingForMove = false;
-        return;
-      }
-      
-      var bestMove = getBestMove();
-      
-      if (bestMove) {
-        game.move(bestMove);
-        board.position(game.fen());
-        updateAnalysis();
-      }
-      
-      waitingForMove = false;
     }
 
     function resetBoard() {
       game.reset();
       board.start();
       waitingForMove = false;
-      $("#status").text("Ваш ход (белые)");
-      $("#analysis").text("🧩 Оценка позиции: 0.00");
-      updateAnalysis();
+      currentBestMove = null;
+      
+      $('#evaluation').text('0.00').removeClass('eval-positive eval-negative').addClass('eval-neutral');
+      $('#bestMove').text('—');
+      $('#depth').text('—');
+      $('#nodes').text('—');
+      $('#status').text('Your move (White)');
+      
+      if (engineReady) {
+        $('#engineStatus').text('Ready');
+        analyzePosition();
+      }
     }
 
-    board = Chessboard("board", {
+    function undoMove() {
+      if (game.history().length === 0) return;
+      
+      // Отменяем два хода (ваш и AI)
+      game.undo();
+      if (game.history().length > 0 && game.turn() === 'b') {
+        game.undo();
+      }
+      
+      board.position(game.fen());
+      waitingForMove = false;
+      updateStatus();
+      analyzePosition();
+    }
+
+    // Инициализация доски
+    var config = {
       draggable: true,
-      position: "start",
+      position: 'start',
       onDragStart: onDragStart,
       onDrop: onDrop,
-      pieceTheme: "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png"
-    });
+      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+    };
+    
+    board = Chessboard('board', config);
 
-    updateAnalysis();
+    // Запуск Stockfish
+    initStockfish();
+
+    // Адаптивность
+    $(window).resize(function() {
+      board.resize();
+    });
   </script>
 </body>
 </html>
