@@ -1,5 +1,6 @@
-// === stockfish-worker.js ===
-// ✅ Stable version for Stockfish 16 WASM (works on Vercel)
+// stockfish-worker.js
+importScripts('https://unpkg.com/stockfish@16.1.0/src/stockfish.js');
+
 
 let engine = null;
 let engineReady = false;
