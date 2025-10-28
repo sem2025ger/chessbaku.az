@@ -1,160 +1,110 @@
-// === ChessBaku app.js ===
+// app.js — ChessBaku (рабочая версия)
+
+// Проверяем, что библиотека chess.js подключена
+const boardElement = document.getElementById('board');
+const evaluationEl = document.getElementById('evaluation');
+const depthEl = document.getElementById('depth');
+const nodesEl = document.getElementById('nodes');
+const speedEl = document.getElementById('speed');
+const timeEl = document.getElementById('time');
+const bestMoveEl = document.getElementById('bestmove');
+const pvEl = document.getElementById('pv');
 
 let board = null;
 let game = new Chess();
-let stockfishWorker = null;
 
-// === Initialize Stockfish Engine ===
-function initStockfish() {
-  stockfishWorker = new Worker("stockfish-worker.js");
+// создаём воркер со Stockfish (загружается с CDN)
+const engine = new Worker('stockfish-worker.js');
 
-  stockfishWorker.onmessage = function (event) {
-    const message = event.data;
-
-    if (message.type === "ready") {
-      updateEngineStatus("✅ Engine ready");
-      startAnalysis();
-    } else if (message.type === "bestmove") {
-      makeAIMove(message.bestmove);
-    } else if (message.type === "info") {
-      updateAnalysisPanel(message.info);
-    }
-  };
-
-  updateEngineStatus("⚙️ Loading Stockfish...");
-  stockfishWorker.postMessage({ type: "init" });
-}
-
-// === Update analysis info ===
-function updateAnalysisPanel(info) {
-  if (info.depth) document.getElementById("depth").textContent = info.depth;
-  if (info.nodes)
-    document.getElementById("nodes").textContent =
-      (parseInt(info.nodes) / 1000000).toFixed(2) + "M";
-  if (info.nps)
-    document.getElementById("nps").textContent =
-      (parseInt(info.nps) / 1000).toFixed(0) + " kn/s";
-  if (info.time)
-    document.getElementById("time").textContent =
-      (parseInt(info.time) / 1000).toFixed(1) + "s";
-
+// функция обновления анализа
+function updateAnalysis(info) {
+  if (info.depth) depthEl.textContent = info.depth;
+  if (info.nodes) nodesEl.textContent = info.nodes;
+  if (info.nps) speedEl.textContent = (info.nps / 1000).toFixed(1) + " kn/s";
+  if (info.time) timeEl.textContent = (info.time / 1000).toFixed(1) + "s";
   if (info.score) {
-    let evalText = info.score;
-    if (info.score.startsWith("cp")) {
-      const cp = parseInt(info.score.split(" ")[1]);
-      const evalValue = (cp / 100).toFixed(2);
-      evalText = (cp > 0 ? "+" : "") + evalValue;
-    } else if (info.score.startsWith("mate")) {
-      const mateIn = info.score.split(" ")[1];
-      evalText = "M" + mateIn;
-    }
-    document.getElementById("evaluation").textContent = evalText;
+    const type = info.score.match(/(cp|mate)/)[1];
+    const val = parseInt(info.score.match(/-?\d+/)[0]);
+    evaluationEl.textContent =
+      type === "cp" ? (val / 100.0).toFixed(2) : "M" + val;
   }
+  if (info.pv) pvEl.textContent = info.pv;
+}
 
-  if (info.pv) {
-    const pvMoves = info.pv.split(" ");
-    document.getElementById("bestMove").textContent = pvMoves[0] || "-";
-    document.getElementById("pvLine").textContent = info.pv;
+// функция отправки позиции на анализ
+function analyze() {
+  engine.postMessage({ type: "analyze", fen: game.fen() });
+}
+
+// события от движка
+engine.onmessage = function (event) {
+  const msg = event.data;
+  if (msg.type === "ready") {
+    console.log("Stockfish ready!");
+    analyze();
+  } else if (msg.type === "info") {
+    updateAnalysis(msg.info);
+  } else if (msg.type === "bestmove") {
+    bestMoveEl.textContent = msg.bestmove;
   }
-}
-
-// === Game logic ===
-function makeAIMove(move) {
-  if (!move || move === "(none)") return;
-  const moveObj = game.move({
-    from: move.substring(0, 2),
-    to: move.substring(2, 4),
-    promotion: "q",
-  });
-  if (moveObj) {
-    board.position(game.fen());
-    updateStatus();
-    startAnalysis();
-  }
-}
-
-function onDragStart(source, piece) {
-  if (game.game_over()) return false;
-  if (game.turn() === "b" || piece.startsWith("b")) return false;
-}
-
-function onDrop(source, target) {
-  const move = game.move({ from: source, to: target, promotion: "q" });
-  if (move === null) return "snapback";
-
-  updateStatus();
-  startAnalysis();
-  setTimeout(getAIMove, 400);
-}
-
-function onSnapEnd() {
-  board.position(game.fen());
-}
-
-function getAIMove() {
-  stockfishWorker.postMessage({ type: "getmove", fen: game.fen() });
-}
-
-function startAnalysis() {
-  stockfishWorker.postMessage({ type: "analyze", fen: game.fen() });
-}
-
-function updateEngineStatus(status) {
-  document.getElementById("engineStatus").textContent = status;
-}
-
-function updateStatus() {
-  let status = "";
-  const moveColor = game.turn() === "b" ? "Black" : "White";
-
-  if (game.in_checkmate()) {
-    status = "Game over, " + moveColor + " is checkmated.";
-  } else if (game.in_draw()) {
-    status = "Game drawn.";
-  } else {
-    status = moveColor + " to move";
-    if (game.in_check()) status += ", " + moveColor + " is in check";
-  }
-
-  document.getElementById("status").textContent = status;
-
-  const history = game.history();
-  document.getElementById("moveHistory").textContent = history.join(" ");
-}
-
-// === Board configuration ===
-const config = {
-  draggable: true,
-  position: "start",
-  onDragStart,
-  onDrop,
-  onSnapEnd,
 };
 
-board = Chessboard("myBoard", config);
+// инициализация движка
+engine.postMessage({ type: "init" });
 
-// === Buttons ===
-document.getElementById("newGameBtn").addEventListener("click", () => {
-  game.reset();
-  board.start();
-  updateStatus();
-  startAnalysis();
-});
+// функция при перемещении фигур
+function onDragStart(source, piece) {
+  if (game.game_over() || (game.turn() === 'w' && piece.startsWith('b')) || (game.turn() === 'b' && piece.startsWith('w'))) {
+    return false;
+  }
+}
 
-document.getElementById("undoBtn").addEventListener("click", () => {
-  game.undo();
-  game.undo();
+// функция, вызываемая при отпускании фигуры
+function onDrop(source, target) {
+  const move = game.move({ from: source, to: target, promotion: 'q' });
+  if (move === null) return 'snapback';
+  updateBoard();
+  engine.postMessage({ type: "getmove", fen: game.fen() });
+}
+
+// при завершении движения фигуры
+function onSnapEnd() {
+  updateBoard();
+  analyze();
+}
+
+// обновление доски
+function updateBoard() {
   board.position(game.fen());
-  updateStatus();
-  startAnalysis();
+  document.getElementById('status').textContent = (game.turn() === 'w' ? 'White' : 'Black') + " to move";
+}
+
+// кнопки управления
+document.getElementById('newGameBtn').addEventListener('click', () => {
+  game.reset();
+  updateBoard();
+  analyze();
 });
 
-document.getElementById("flipBtn").addEventListener("click", () => {
+document.getElementById('undoBtn').addEventListener('click', () => {
+  game.undo();
+  updateBoard();
+  analyze();
+});
+
+document.getElementById('flipBtn').addEventListener('click', () => {
   board.flip();
 });
 
-// === Initialize ===
-window.addEventListener("load", () => {
-  initStockfish();
-  updateStatus();
-});
+// инициализация шахматной доски
+const config = {
+  draggable: true,
+  position: 'start',
+  onDragStart: onDragStart,
+  onDrop: onDrop,
+  onSnapEnd: onSnapEnd,
+  pieceTheme: 'https://cdnjs.cloudflare.com/ajax/libs/chessboardjs/1.0.0/img/chesspieces/wikipedia/{piece}.png'
+};
+board = Chessboard('board', config);
+
+updateBoard();
