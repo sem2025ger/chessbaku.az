@@ -24,7 +24,8 @@
 
     <div class="game-container">
       <div class="board-section">
-        <div id="myBoard"></div>
+        <!-- ИСПРАВЛЕНО: id="board" вместо id="myBoard" -->
+        <div id="board"></div>
 
         <div class="controls">
           <button id="newGameBtn" class="btn">♻️ New Game</button>
@@ -57,7 +58,8 @@
             </div>
             <div class="info-item">
               <span class="info-label">Speed:</span>
-              <span id="nps" class="info-value">0 kn/s</span>
+              <!-- ИСПРАВЛЕНО: id="speed" вместо id="nps" -->
+              <span id="speed" class="info-value">0 kn/s</span>
             </div>
             <div class="info-item">
               <span class="info-label">Time:</span>
@@ -67,12 +69,14 @@
 
           <div class="best-move-section">
             <div class="info-label">Best Move:</div>
-            <div id="bestMove" class="best-move-value">-</div>
+            <!-- ИСПРАВЛЕНО: id="bestmove" вместо id="bestMove" -->
+            <div id="bestmove" class="best-move-value">-</div>
           </div>
 
           <div class="pv-section">
             <div class="info-label">Principal Variation:</div>
-            <div id="pvLine" class="pv-value">-</div>
+            <!-- ИСПРАВЛЕНО: id="pv" вместо id="pvLine" -->
+            <div id="pv" class="pv-value">-</div>
           </div>
         </div>
 
