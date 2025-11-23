@@ -1,7 +1,8 @@
 // stockfish-worker.js
 
 // Загружаем движок Stockfish из CDN
-importScripts('https://cdn.jsdelivr.net/npm/stockfish.wasm@0.11.0/stockfish.js');
+importScripts("https://cdn.jsdelivr.net/npm/stockfish/src/stockfish.wasm.js");
+
 
 let engine = null;
 let ready = false;
