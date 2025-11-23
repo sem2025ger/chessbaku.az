@@ -1,7 +1,6 @@
-// app.js — ChessBaku (исправленная версия)
+// app.js — ChessBaku (исправлено под Stockfish 10 UCI worker)
 
-// Проверяем, что все элементы существуют
-const boardElement = document.getElementById('board');
+// DOM
 const evaluationEl = document.getElementById('evaluation');
 const depthEl = document.getElementById('depth');
 const nodesEl = document.getElementById('nodes');
@@ -9,209 +8,251 @@ const speedEl = document.getElementById('speed');
 const timeEl = document.getElementById('time');
 const bestMoveEl = document.getElementById('bestmove');
 const pvEl = document.getElementById('pv');
+const statusEl = document.getElementById('status');
+const moveHistoryEl = document.getElementById('moveHistory');
 
 let board = null;
 let game = new Chess();
-let playerColor = 'w'; // игрок играет за белых
 let engineThinking = false;
 
-// создаём воркер со Stockfish
+// Stockfish worker (SF10)
 const engine = new Worker('stockfish-worker.js');
 
-// функция обновления анализа
+// --- UCI helpers ---
+let engineReady = false;
+let lastInfo = {};
+
+// Инициализация движка
+function initEngine() {
+  engine.postMessage("uci");
+  engine.postMessage("isready");
+  engine.postMessage("ucinewgame");
+  engine.postMessage("setoption name Threads value 2");
+  engine.postMessage("setoption name Hash value 64");
+}
+
+// Отправка позиции на анализ
+function analyzePosition() {
+  if (game.game_over() || !engineReady) return;
+
+  engine.postMessage("stop");
+  engine.postMessage(`position fen ${game.fen()}`);
+  // Можно менять глубину под себя
+  engine.postMessage("go depth 14");
+}
+
+// Запрос хода движка
+function requestEngineMove() {
+  if (game.game_over() || !engineReady) return;
+
+  engineThinking = true;
+  engine.postMessage("stop");
+  engine.postMessage(`position fen ${game.fen()}`);
+  engine.postMessage("go depth 12");
+}
+
+// --- Parsing UCI output ---
+function handleInfoLine(line) {
+  // Пример: "info depth 12 seldepth 18 score cp 23 nodes 12345 nps 456789 time 123 pv e2e4 e7e5 ..."
+  const info = {};
+
+  const depthMatch = line.match(/\bdepth (\d+)/);
+  if (depthMatch) info.depth = depthMatch[1];
+
+  const nodesMatch = line.match(/\bnodes (\d+)/);
+  if (nodesMatch) info.nodes = nodesMatch[1];
+
+  const npsMatch = line.match(/\bnps (\d+)/);
+  if (npsMatch) info.nps = npsMatch[1];
+
+  const timeMatch = line.match(/\btime (\d+)/);
+  if (timeMatch) info.time = timeMatch[1];
+
+  const scoreCpMatch = line.match(/\bscore cp (-?\d+)/);
+  const scoreMateMatch = line.match(/\bscore mate (-?\d+)/);
+  if (scoreCpMatch) info.score = `cp ${scoreCpMatch[1]}`;
+  if (scoreMateMatch) info.score = `mate ${scoreMateMatch[1]}`;
+
+  const pvMatch = line.match(/\bpv (.+)$/);
+  if (pvMatch) info.pv = pvMatch[1];
+
+  lastInfo = { ...lastInfo, ...info };
+  updateAnalysis(lastInfo);
+}
+
+function handleBestMoveLine(line) {
+  // Пример: "bestmove e2e4 ponder e7e5"
+  const parts = line.split(" ");
+  const moveStr = parts[1];
+
+  bestMoveEl.textContent = moveStr || "";
+
+  if (engineThinking && moveStr && moveStr !== "(none)") {
+    makeEngineMove(moveStr);
+  }
+  engineThinking = false;
+
+  // После хода движка — новый анализ
+  analyzePosition();
+}
+
+// UI update
 function updateAnalysis(info) {
   if (info.depth) depthEl.textContent = info.depth;
+
   if (info.nodes) {
-    const nodes = parseInt(info.nodes);
-    if (nodes > 1000000) {
-      nodesEl.textContent = (nodes / 1000000).toFixed(2) + "M";
-    } else if (nodes > 1000) {
-      nodesEl.textContent = (nodes / 1000).toFixed(1) + "k";
-    } else {
-      nodesEl.textContent = nodes;
-    }
+    const nodes = parseInt(info.nodes, 10);
+    if (nodes > 1000000) nodesEl.textContent = (nodes / 1000000).toFixed(2) + "M";
+    else if (nodes > 1000) nodesEl.textContent = (nodes / 1000).toFixed(1) + "k";
+    else nodesEl.textContent = nodes;
   }
+
   if (info.nps) {
-    const nps = parseInt(info.nps);
+    const nps = parseInt(info.nps, 10);
     speedEl.textContent = (nps / 1000).toFixed(1) + " kn/s";
   }
+
   if (info.time) {
-    const time = parseInt(info.time);
-    timeEl.textContent = (time / 1000).toFixed(1) + "s";
+    const t = parseInt(info.time, 10);
+    timeEl.textContent = (t / 1000).toFixed(1) + "s";
   }
+
   if (info.score) {
     const cpMatch = info.score.match(/cp (-?\d+)/);
     const mateMatch = info.score.match(/mate (-?\d+)/);
-    
+
     if (cpMatch) {
-      const val = parseInt(cpMatch[1]);
+      const val = parseInt(cpMatch[1], 10);
       evaluationEl.textContent = (val / 100.0).toFixed(2);
     } else if (mateMatch) {
-      const val = parseInt(mateMatch[1]);
-      evaluationEl.textContent = "M" + val;
+      evaluationEl.textContent = "M" + mateMatch[1];
     }
   }
+
   if (info.pv) {
     pvEl.textContent = info.pv;
-    // Обновляем лучший ход (первый ход из PV)
-    const firstMove = info.pv.split(' ')[0];
-    if (firstMove) {
-      bestMoveEl.textContent = firstMove;
-    }
+    const firstMove = info.pv.split(" ")[0];
+    if (firstMove) bestMoveEl.textContent = firstMove;
   }
 }
 
-// функция отправки позиции на анализ
-function analyze() {
-  if (!game.game_over()) {
-    engine.postMessage({ type: "analyze", fen: game.fen() });
-  }
-}
-
-// события от движка
-engine.onmessage = function (event) {
-  const msg = event.data;
-  
-  if (msg.type === "ready") {
-    console.log("Stockfish готов!");
-    analyze();
-  } else if (msg.type === "info") {
-    updateAnalysis(msg.info);
-  } else if (msg.type === "bestmove") {
-    if (engineThinking && msg.bestmove && msg.bestmove !== "(none)") {
-      makeEngineMove(msg.bestmove);
-    }
-    engineThinking = false;
-  }
-};
-
-// инициализация движка
-engine.postMessage({ type: "init" });
-
-// функция для хода движка
+// Make engine move on board
 function makeEngineMove(moveStr) {
   if (!moveStr || moveStr === "(none)") return;
-  
+
   const from = moveStr.substring(0, 2);
   const to = moveStr.substring(2, 4);
   const promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : undefined;
-  
-  const move = game.move({
-    from: from,
-    to: to,
-    promotion: promotion
-  });
-  
+
+  const move = game.move({ from, to, promotion });
   if (move) {
     updateBoard();
-    analyze();
   }
 }
 
-// функция при начале перетаскивания фигур
-function onDragStart(source, piece, position, orientation) {
-  // Запрещаем ход если:
-  // - игра окончена
-  // - движок думает
-  // - не ход игрока
-  if (game.game_over()) return false;
-  if (engineThinking) return false;
-  
-  // Проверяем, что игрок двигает свои фигуры
-  if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-      (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+// --- Chessboard events ---
+function onDragStart(source, piece) {
+  if (game.game_over() || engineThinking) return false;
+
+  if ((game.turn() === 'w' && piece.startsWith('b')) ||
+      (game.turn() === 'b' && piece.startsWith('w'))) {
     return false;
   }
-  
   return true;
 }
 
-// функция, вызываемая при отпускании фигуры
 function onDrop(source, target) {
-  // Пытаемся сделать ход
   const move = game.move({
     from: source,
     to: target,
-    promotion: 'q' // всегда превращаем в ферзя
+    promotion: 'q'
   });
-  
-  // Если ход невалидный - возвращаем фигуру
+
   if (move === null) return 'snapback';
-  
-  // Обновляем доску и запускаем анализ
+
   updateBoard();
-  
-  // Если игра не окончена, запрашиваем ход движка
+
   if (!game.game_over()) {
-    engineThinking = true;
-    setTimeout(() => {
-      engine.postMessage({ type: "getmove", fen: game.fen() });
-    }, 250);
+    requestEngineMove();
   }
 }
 
-// при завершении движения фигуры
 function onSnapEnd() {
   board.position(game.fen());
 }
 
-// обновление доски и статуса
+// --- Board + status ---
+function updateMoveHistory() {
+  if (!moveHistoryEl) return;
+  const history = game.history();
+  let html = '';
+  for (let i = 0; i < history.length; i += 2) {
+    const num = Math.floor(i / 2) + 1;
+    html += num + '. ' + history[i];
+    if (history[i + 1]) html += ' ' + history[i + 1];
+    html += '<br>';
+  }
+  moveHistoryEl.innerHTML = html;
+}
+
 function updateBoard() {
   board.position(game.fen());
-  
+
   let status = '';
-  let moveColor = game.turn() === 'w' ? 'Белые' : 'Чёрные';
-  
-  if (game.in_checkmate()) {
-    status = 'Игра окончена. ' + moveColor + ' получили мат.';
-  } else if (game.in_draw()) {
-    status = 'Игра окончена. Ничья.';
-  } else if (game.in_stalemate()) {
-    status = 'Игра окончена. Пат.';
-  } else if (game.in_threefold_repetition()) {
-    status = 'Игра окончена. Троекратное повторение позиции.';
-  } else {
+  const moveColor = game.turn() === 'w' ? 'Белые' : 'Чёрные';
+
+  if (game.in_checkmate()) status = 'Игра окончена. ' + moveColor + ' получили мат.';
+  else if (game.in_draw()) status = 'Игра окончена. Ничья.';
+  else if (game.in_stalemate()) status = 'Игра окончена. Пат.';
+  else if (game.in_threefold_repetition()) status = 'Игра окончена. Троекратное повторение позиции.';
+  else {
     status = moveColor + ' ходят';
-    if (game.in_check()) {
-      status += '. Шах!';
-    }
+    if (game.in_check()) status += '. Шах!';
   }
-  
-  document.getElementById('status').textContent = status;
-  
-  // Обновляем историю ходов
+
+  if (statusEl) statusEl.textContent = status;
   updateMoveHistory();
+
+  analyzePosition();
 }
 
-// функция обновления истории ходов
-function updateMoveHistory() {
-  const history = game.history();
-  const moveHistoryEl = document.getElementById('moveHistory');
-  
-  if (moveHistoryEl) {
-    let historyHTML = '';
-    for (let i = 0; i < history.length; i += 2) {
-      const moveNum = Math.floor(i / 2) + 1;
-      historyHTML += moveNum + '. ' + history[i];
-      if (history[i + 1]) {
-        historyHTML += ' ' + history[i + 1];
-      }
-      historyHTML += '<br>';
-    }
-    moveHistoryEl.innerHTML = historyHTML;
+// --- Engine known messages ---
+engine.onmessage = function (event) {
+  const line = String(event.data).trim();
+
+  if (!line) return;
+
+  if (line === "uciok") {
+    engineReady = true;
+    return;
   }
-}
 
-// кнопки управления
-document.getElementById('newGameBtn').addEventListener('click', () => {
+  if (line === "readyok") {
+    engineReady = true;
+    analyzePosition();
+    return;
+  }
+
+  if (line.startsWith("info ")) {
+    handleInfoLine(line);
+    return;
+  }
+
+  if (line.startsWith("bestmove ")) {
+    handleBestMoveLine(line);
+    return;
+  }
+};
+
+// --- UI buttons ---
+document.getElementById('newGameBtn')?.addEventListener('click', () => {
   game.reset();
   engineThinking = false;
+  lastInfo = {};
   updateBoard();
-  analyze();
 });
 
-document.getElementById('undoBtn').addEventListener('click', () => {
-  // Отменяем два хода (игрока и движка)
+document.getElementById('undoBtn')?.addEventListener('click', () => {
   if (game.history().length >= 2) {
     game.undo();
     game.undo();
@@ -220,29 +261,22 @@ document.getElementById('undoBtn').addEventListener('click', () => {
   }
   engineThinking = false;
   updateBoard();
-  analyze();
 });
 
-document.getElementById('flipBtn').addEventListener('click', () => {
+document.getElementById('flipBtn')?.addEventListener('click', () => {
   board.flip();
 });
 
-// инициализация шахматной доски
+// --- Init board ---
 const config = {
   draggable: true,
   position: 'start',
-  onDragStart: onDragStart,
-  onDrop: onDrop,
-  onSnapEnd: onSnapEnd,
+  onDragStart,
+  onDrop,
+  onSnapEnd,
   pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
 };
 
 board = Chessboard('board', config);
-
-// Первоначальное обновление
 updateBoard();
-
-// Запускаем анализ после загрузки
-window.addEventListener('load', () => {
-  analyze();
-});
+initEngine();
