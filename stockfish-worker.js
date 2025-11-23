@@ -1,26 +1,13 @@
 importScripts("https://cdn.jsdelivr.net/npm/stockfish/src/stockfish.wasm.js");
 
-let engine = STOCKFISH();
-let ready = false;
+const engine = STOCKFISH();
 
-// Handler for Stockfish output
-engine.onmessage = function (message) {
-    if (message === 'uciok') {
-        ready = true;
-        postMessage({ type: 'ready' });
-    } 
-    else if (typeof message === 'string') {
-        if (message.startsWith('bestmove')) {
-            postMessage({ type: 'bestmove', value: message });
-        } else {
-            postMessage({ type: 'info', value: message });
-        }
-    }
+// Всё, что движок пишет — отправляем как есть (строкой)
+engine.onmessage = function (msg) {
+  postMessage(msg);
 };
 
-// Handler for messages from main thread
+// Всё, что приходит из app.js — пересылаем в движок
 onmessage = function (event) {
-    if (engine) {
-        engine.postMessage(event.data);
-    }
+  engine.postMessage(event.data);
 };
