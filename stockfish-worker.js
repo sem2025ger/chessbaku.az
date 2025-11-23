@@ -1,42 +1,69 @@
-// stockfish-worker.js — полностью рабочий файл для Stockfish 10
-// Работает в любом Web Worker, не требует WASM, не даёт ошибок CDN/CORS.
+/**
+ * Stable Stockfish 16 WASM worker for Vercel
+ * with automatic CDN fallback and async initialization.
+ */
 
-const CDN_URL = "https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js";
+// 1) Надёжный набор CDN-ссылок (все проверены)
+const CDN_URLS = [
+  "https://cdn.jsdelivr.net/npm/stockfish@16.1.0/stockfish.js",
+  "https://cdn.jsdelivr.net/npm/stockfish@16.0.0/stockfish.js",
+  "https://unpkg.com/stockfish@16.1.0/stockfish.js",
+  "https://unpkg.com/stockfish@16.0.0/stockfish.js"
+];
 
 let engine = null;
+let loaded = false;
 
-// 1) Загружаем движок с CDN
-try {
-    importScripts(CDN_URL);
-} catch (e) {
-    postMessage("error: Cannot load Stockfish from CDN: " + e.toString());
-    throw e;
-}
-
-// 2) Проверяем, появился ли Stockfish()
-if (typeof Stockfish !== "function") {
-    const msg = "error: Stockfish global function not found!";
-    postMessage(msg);
-    throw new Error(msg);
-}
-
-// 3) Создаём движок (SF10 — чистый JavaScript, без Promise)
-engine = Stockfish();
-
-// 4) Сообщения от движка (engine → main thread)
-engine.onmessage = function (event) {
-    const msg = typeof event === "object" && event.data ? event.data : event;
-    postMessage(msg);
-};
-
-// 5) Сообщения в движок (main thread → engine)
-onmessage = function (event) {
-    if (!engine) {
-        postMessage("error: Engine not initialized yet");
-        return;
+// 2) Пытаемся загрузить движок с нескольких CDN
+(async function loadEngine() {
+  for (const url of CDN_URLS) {
+    try {
+      importScripts(url);
+      loaded = true;
+      break;
+    } catch (err) {
+      // Переходим к следующей ссылке
     }
-    engine.postMessage(event.data);
-};
+  }
 
-// 6) Сообщаем, что воркер загружен
-postMessage("uciok");
+  if (!loaded) {
+    postMessage({ type: "error", value: "Failed to load Stockfish from all CDNs" });
+    return;
+  }
+
+  // 3) Ждём, пока функция Stockfish() появится в воркере
+  await waitForStockfish();
+
+  // 4) Создаём движок
+  engine = Stockfish();
+
+  // 5) Передаём в UI, что движок готов
+  postMessage({ type: "ready" });
+
+  // 6) Перехватываем всё, что пишет движок, и отправляем в основную страницу
+  engine.onmessage = (msg) => {
+    if (typeof msg === "string") {
+      postMessage({ type: "info", value: msg });
+    } else {
+      postMessage(msg);
+    }
+  };
+})();
+
+// Ожидание появления глобальной функции Stockfish()
+function waitForStockfish() {
+  return new Promise((resolve) => {
+    const interval = setInterval(() => {
+      if (typeof Stockfish === "function") {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 30);
+  });
+}
+
+// 7) Всё, что приходит из app.js — передаём движку
+onmessage = function (event) {
+  if (!engine) return;
+  engine.postMessage(event.data);
+};
