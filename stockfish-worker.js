@@ -1,19 +1,20 @@
 /**
- * Stable Stockfish 16 Worker for Vercel
- * Работает со всеми браузерами
+ * Stable Stockfish 16 WASM Worker for Vercel
+ * Работает во всех браузерах
  */
 
-const ENGINE_URL = "https://unpkg.com/stockfish@16.1.0/src/stockfish.js";
+const ENGINE_URL = "https://cdn.jsdelivr.net/gh/nmrugg/stockfish.js/stockfish.wasm.js";
 
 let engine = null;
 
+// Загружаем движок
 try {
     importScripts(ENGINE_URL);
 } catch (err) {
     postMessage({ type: "error", value: "Failed to load Stockfish script" });
 }
 
-// Ожидаем появления глобальной функции Stockfish()
+// Ждем появления глобальной функции Stockfish()
 function waitForStockfish() {
     return new Promise((resolve, reject) => {
         const check = setInterval(() => {
@@ -34,30 +35,26 @@ function waitForStockfish() {
     try {
         await waitForStockfish();
 
-        const sf = Stockfish();
+        // Создаём движок
+        engine = Stockfish();
 
-        if (sf instanceof Promise) {
-            engine = await sf;
-        } else {
-            engine = sf;
-        }
-
-        engine.onmessage = (event) => {
-            const msg = typeof event === "string" ? event : event.data;
-            postMessage(msg);
+        // Обратные сообщения от движка → в UI
+        engine.onmessage = function (msg) {
+            const text = typeof msg === "string" ? msg : msg.data;
+            postMessage(text);
         };
 
         postMessage("ready");
 
     } catch (err) {
-        console.error(err);
         postMessage({ type: "error", value: err });
     }
 })();
 
+// Получаем команды от UI → отправляем движку
 onmessage = function (event) {
     if (!engine) {
-        console.warn("Engine not ready");
+        postMessage("Engine not ready");
         return;
     }
     engine.postMessage(event.data);
