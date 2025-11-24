@@ -1,57 +1,64 @@
 /**
- * Fully stable Stockfish Web Worker (WASM + fallback)
- * Works on Vercel, GitHub Pages, Localhost — without CORS issues
- * Uses nmrugg/stockfish.js (recommended for browser apps)
+ * Stable Stockfish 16 Worker for Vercel
+ * Работает со всеми браузерами
  */
 
-// 1) Stable CDN with correct WASM paths
-const ENGINE_URL = "https://unpkg.com/stockfish.js@10.0.0/stockfish.js";
+const ENGINE_URL = "https://unpkg.com/stockfish@16.1.0/src/stockfish.js";
 
 let engine = null;
 
-// 2) Load Stockfish script
 try {
     importScripts(ENGINE_URL);
 } catch (err) {
-    postMessage("error: failed to load Stockfish.js from CDN");
+    postMessage({ type: "error", value: "Failed to load Stockfish script" });
 }
 
-// 3) Initialize Stockfish (handles both synchronously and async (Promise) versions)
+// Ожидаем появления глобальной функции Stockfish()
+function waitForStockfish() {
+    return new Promise((resolve, reject) => {
+        const check = setInterval(() => {
+            if (typeof Stockfish === "function") {
+                clearInterval(check);
+                resolve();
+            }
+        }, 50);
+
+        setTimeout(() => {
+            clearInterval(check);
+            reject("Stockfish global not found");
+        }, 5000);
+    });
+}
+
 (async () => {
     try {
-        if (typeof Stockfish === "undefined") {
-            throw new Error("Stockfish is not defined after loading script");
-        }
+        await waitForStockfish();
 
-        const maybePromise = Stockfish();
+        const sf = Stockfish();
 
-        // If engine returns Promise → await it
-        if (maybePromise instanceof Promise) {
-            engine = await maybePromise;
+        if (sf instanceof Promise) {
+            engine = await sf;
         } else {
-            engine = maybePromise;
+            engine = sf;
         }
 
-        // 4) When engine produces output → send it to UI
-        engine.onmessage = function (msg) {
-            const message = typeof msg === "string" ? msg : msg.data;
-            postMessage(message);
+        engine.onmessage = (event) => {
+            const msg = typeof event === "string" ? event : event.data;
+            postMessage(msg);
         };
 
-        // Optional: notify frontend that engine is ready
         postMessage("ready");
 
     } catch (err) {
-        postMessage("error: Stockfish initialization failed");
+        console.error(err);
+        postMessage({ type: "error", value: err });
     }
 })();
 
-// 5) Receive commands from React/JS app and forward to engine
 onmessage = function (event) {
     if (!engine) {
-        console.warn("Stockfish is not ready yet");
+        console.warn("Engine not ready");
         return;
     }
-
     engine.postMessage(event.data);
 };
